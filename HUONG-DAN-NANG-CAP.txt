@@ -1,0 +1,9 @@
+ENGLISH VOCAB DAILY 3.0 — CẬP NHẬT TỪ 2.0
+=============================================
+1) CẢNH BÁO QUAN TRỌNG: Trước khi cập nhật lên GitHub, mở trang giáo viên hiện tại > Sao lưu dữ liệu. Render Free + SQLite không bảo đảm dữ liệu tồn tại qua lần triển khai mới. Sao lưu chưa đồng nghĩa với tự động khôi phục.
+2) Giải nén file ZIP này trên máy tính.
+3) GitHub > anhanh2203-hash/EnglishVocabDaily > Add file > Upload files. Tải NỘI DUNG ĐÃ GIẢI NÉN lên, giữ nguyên thư mục public (index.html, app.js, style.css) và các file server.js, seed.js, package.json ở thư mục gốc. Xác nhận ghi đè file cùng tên. Không tải ZIP nguyên khối, .env, hoặc dữ liệu cá nhân lên GitHub.
+4) Render tự triển khai nếu Auto Deploy bật. Vào Render > EnglishVocabDaily > Events/Logs, chờ trạng thái Live. Nếu không tự triển khai, dùng Manual Deploy (không xóa dịch vụ).
+5) Đăng nhập giáo viên > Ngân hàng câu hỏi > Chọn khối > điền Unit. Dán danh sách từ[Tab]nghĩa vào vùng "Tạo câu hỏi tự động" > xem trước > Lưu câu hỏi vào ngân hàng.
+6) Giao bài mới: chọn 5/10/15/20/30/50 câu, phút và số lượt. Gửi mã bài cho học sinh.
+7) Không sử dụng dữ liệu học sinh thật hoặc điểm chính thức trên Render Free có SQLite tạm.
