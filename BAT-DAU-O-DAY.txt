@@ -1,0 +1,39 @@
+ENGLISH VOCAB DAILY – WEBSITE HOÀN CHỈNH
+
+CÁCH MỞ WEBSITE TRÊN MÁY TÍNH
+1. Cài Node.js 22.13 trở lên từ https://nodejs.org/
+2. Giải nén file ZIP. Mở Terminal/PowerShell trong thư mục chứa server.js.
+3. Chạy: npm start
+4. Mở http://localhost:3000
+
+TÀI KHOẢN DÙNG THỬ TRÊN MÁY TÍNH (KHÔNG DÙNG TRÊN INTERNET)
+Giáo viên: teacher / Teacher@123
+Học sinh mẫu: student6 ... student12 / Student@123
+
+TRÊN RENDER (CHỈ ĐỂ THỬ MIỄN PHÍ)
+- Tải các file đã giải nén lên GỐC repository GitHub (KHÔNG tải file ZIP).
+- Render Web Service / Language Node / branch main / Root Directory để trống.
+- Build: npm install
+- Start: npm start
+- Environment Variables:
+  NODE_ENV=production
+  DB_PATH=/tmp/vocab.sqlite
+  REQUIRE_PERSISTENT_STORAGE=0
+  DEMO_SEED=0
+  ADMIN_USERNAME=teacher
+  ADMIN_PASSWORD=[mật khẩu riêng ít nhất 10 ký tự, KHÔNG đăng lên GitHub]
+- Free không giữ an toàn dữ liệu SQLite qua restart/redeploy. CHỈ DÙNG HỌC SINH VÀ ĐIỂM GIẢ.
+- Muốn sử dụng thật: cần máy chủ trả phí có persistent disk (DB_PATH=/var/data/vocab.sqlite; REQUIRE_PERSISTENT_STORAGE=1), sao lưu độc lập thường xuyên.
+
+GIÁO VIÊN:
+- Đăng nhập, tạo lớp, sao chép mã lớp.
+- Vào Ngân hàng câu hỏi: chọn khối, nhập chủ đề/Unit, dán bảng 8 cột từ Excel, ít nhất 20 câu rồi Lưu.
+- Vào Giao bài mới: chọn lớp, nhập chính xác tên chủ đề đã có >=20 câu.
+- Xem dashboard, xuất CSV hoặc sao lưu SQLite.
+
+HỌC SINH:
+- Mở website, đăng ký bằng mã lớp và mật khẩu riêng.
+- Làm 20 câu trong 10 phút, tối đa 2 lượt; kết quả đồng bộ về giáo viên.
+
+LƯU Ý: Ngân hàng mặc định là dữ liệu minh họa theo khối, CHƯA ĐƯỢC xác minh theo Unit sách Global Success.
+Đừng dùng bộ mẫu làm đề chính thức trước khi giáo viên kiểm tra.
