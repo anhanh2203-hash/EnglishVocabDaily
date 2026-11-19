@@ -1,9 +1,15 @@
-BẢN 1.4: KHẮC PHỤC MẤT GIỌNG FLASHCARD ĐỀ SỐ 3
+ENGLISH DAILY WITH MS. ANH – BÀI TEST 3 DẠNG 1.6
 
-Mở GitHub repository > public > Add file > Upload files.
-Chỉ tải lên 2 tệp: flashcards.html và pronunciation.js rồi Commit changes.
-Không tải lên server.js; không chỉnh cơ sở dữ liệu.
-flashcards.js và flashcards.css trong ZIP được giữ nguyên từ bản gom Đề 3 1.3 để sao lưu.
+1) SAO LƯU cơ sở dữ liệu từ trang giáo viên trước khi thay mã.
+2) Upload server.js vào thư mục gốc của repository GitHub.
+3) Upload app.js, index.html, style.css, msanh.css vào public/ (không xóa flashcards.js, pronunciation.js hoặc tệp khác).
+4) Đợi Render triển khai thành công.
+5) Trong Ngân hàng câu hỏi, chọn Khối 11 và tên chủ đề TRÙNG CHÍNH XÁC với chủ đề của ngân hàng Đề 3 đang dùng.
+6) Dán 03_60_Cau_Viet_Nghia_Va_Dien_Tu.tsv vào ô nhập câu hỏi của ngân hàng (không phải ô Tạo câu hỏi từ danh sách từ vựng). Nhấn Lưu. Có thể nhập 2 tệp 30 riêng.
+7) Tạo một bài test 30 hoặc 50 câu với cùng chủ đề. Khi có đủ loại trong ngân hàng, máy chủ chia cân đối ba nhóm: trắc nghiệm, viết nghĩa và điền từ vào câu.
+8) Câu điền từ: cột 9 là fill-word; cột A chứa từ tiếng Anh đúng; đáp án A; cột 10 chứa các biến thể được duyệt phân cách bởi dấu |.
+9) Chấm đáp án viết tự do theo danh sách đúng đã duyệt; không dùng đoán nghĩa AI; sai chính tả không tự động được công nhận.
+10) Câu điền từ dùng một vị trí trống _____; lời giải hiện sau khi giáo viên bật hoặc hết hạn.
+11) Không xóa dữ liệu, không chạy migration phá hủy; các bài kiểm tra và flashcard đã tạo vẫn ở cơ sở dữ liệu.
 
-Thử: mở đề 3 > bộ 50 từ > chọn Lật thẻ > nhấn Phát âm. Trên điện thoại tải lại trang sau khi cập nhật.
-Giọng nói máy phụ thuộc trình duyệt/hệ điều hành; bản ghi từ điển chỉ được lưu bộ nhớ khi tra được.
+LƯU Ý: chưa tự triển khai GitHub hoặc Render; cần tải lên các tệp nói trên để website đổi mã.
