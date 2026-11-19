@@ -6,3 +6,10 @@
 .fc-audio-settings select{background:white;max-width:180px;min-width:125px;padding:9px;border:1px solid #bdd0f4;border-radius:9px;}
 #pronStatus{flex-basis:100%;font-size:13px;color:#34496b;min-height:1em;}
 @media(max-width:530px){.fc-audio-settings{align-items:stretch}.fc-audio-settings label{flex:1}.fc-audio-settings select{max-width:100%;width:100%}}
+
+/* Unified topic view for Exam 3; maintains individual card progress. */
+.fc-topic{background:#f0f6ff;border:1px solid #bed3f3;border-radius:17px;overflow:hidden}
+.fc-topic-head{padding:17px 18px;display:flex;flex-wrap:wrap;justify-content:space-between;gap:8px;cursor:pointer;background:#e4efff;color:#183c76}
+.fc-topic-head strong{font-size:1.08rem}.fc-topic-head span{font-size:.9rem;color:#3f6094}
+.fc-topic-section{padding:12px 15px 4px}.fc-topic-section h3{color:#1a4f96;font-size:1rem;margin:3px 0 10px}
+.fc-topic-section .fc-deck{margin:8px 0;background:#fff}.fc-other-heading{font-size:1.08rem;margin:14px 0 0}

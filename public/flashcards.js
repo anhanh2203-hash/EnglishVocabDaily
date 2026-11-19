@@ -8,9 +8,70 @@ function speech(t, button){return Pronunciation.play(t,button)}
 function norm(s){return String(s||'').normalize('NFC').toLowerCase().replace(/\s+/g,' ').trim().replace(/[.!?]+$/,'')}
 function reshuffle(a){const r=[...a];for(let i=r.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[r[i],r[j]]=[r[j],r[i]]}return r}
 async function init(){try{const r=await api('/api/me');user=r.user;if(!user){$('#fcGuest').classList.remove('hidden');$('#fcIdentity').textContent='Chưa đăng nhập';return}$('#fcIdentity').textContent=user.role==='teacher'?'👩‍🏫 Giáo viên':`🎓 ${user.displayName} · ${user.className||'Chưa có lớp'}`;if(user.role==='teacher'){ $('#fcTeacher').classList.remove('hidden');const c=await api('/api/teacher/classes');$('#fcClass').replaceChildren();for(const cls of c.classes)$('#fcClass').add(new Option(`${cls.name} · Lớp ${cls.grade}`,cls.id));if(!c.classes.length)notice('Bạn cần tạo một lớp học ở trang chính trước.');await loadTeacher()}else{$('#fcStudent').classList.remove('hidden');await loadStudent()}}catch(e){notice(e.message)}}
-async function loadTeacher(){const r=await api('/api/v4/decks');decks=r.decks;const root=$('#fcTeacherDecks');root.innerHTML=decks.length?'':'<p>Chưa có bộ từ. Hãy tạo bộ đầu tiên bên trên.</p>';for(const d of decks){const box=document.createElement('div');box.className='fc-deck';box.innerHTML=`<div><h3>${esc(d.title)}</h3><small>${esc(d.class_name)} · ${esc(d.unit)} · ${d.card_count} từ</small></div>`;const btn=document.createElement('button');btn.className='button outline';btn.textContent='Xem tiến độ';btn.onclick=async()=>{try{const r=await api('/api/v4/teacher/progress?deckId='+d.id);const rows=r.students.map(x=>`${esc(x.name)}: ${x.studied}/${d.card_count} từ đã luyện · ${x.remembered} từ nhớ ổn định`).join('\n');alert(rows||'Chưa có học sinh trong lớp này.')}catch(e){notice(e.message)}};box.append(btn);root.append(box)}}
+// Consolidate existing independently saved decks into a single learning topic on screen.
+// The source decks, their database IDs and student progress remain unchanged.
+function isExamThree(d){
+  const label=`${d.unit||''} ${d.title||''}`.normalize('NFC');
+  return /(?:đề\s*(?:số\s*)?0?3|de\s*(?:so\s*)?0?3)(?!\d)/i.test(label);
+}
+function examSection(d){
+  const t=`${d.title||''} ${d.unit||''}`.toLowerCase().normalize('NFC');
+  if(/(?:^|[–\-\s])e\.|dễ nhầm|de nham|confused/.test(t))return 'E. Từ và cấu trúc dễ nhầm';
+  if(/(?:^|[–\-\s])d\.|đồng nghĩa|trái nghĩa|synonym|antonym/.test(t))return 'D. Đồng nghĩa – Trái nghĩa';
+  if(/(?:^|[–\-\s])c\.|word famil|họ từ/.test(t))return 'C. Họ từ (Word Families)';
+  if(/(?:^|[–\-\s])b[123]\.|phrasal|collocation|idiom|expression|cụm từ|cấu trúc|thành ngữ/.test(t))return 'B. Cụm từ & cấu trúc';
+  return 'A. Từ vựng theo bài';
+}
+function appendGroupedDecks(root, data, makeCard){
+  root.replaceChildren();
+  if(!data.length)return false;
+  const grouped=data.filter(isExamThree),standalone=data.filter(d=>!isExamThree(d));
+  if(grouped.length){
+    const group=document.createElement('details');group.className='fc-topic';group.open=true;
+    const total=grouped.reduce((sum,d)=>sum+Number(d.card_count||0),0);
+    const head=document.createElement('summary');head.className='fc-topic-head';
+    const name=document.createElement('strong');name.textContent='📘 ĐỀ SỐ 3 – TỔNG ÔN';
+    const count=document.createElement('span');count.textContent=`${grouped.length} bộ nhỏ · ${total} thẻ`;
+    head.append(name,count);group.append(head);
+    const sections=['A. Từ vựng theo bài','B. Cụm từ & cấu trúc','C. Họ từ (Word Families)','D. Đồng nghĩa – Trái nghĩa','E. Từ và cấu trúc dễ nhầm'];
+    for(const section of sections){
+      const rows=grouped.filter(d=>examSection(d)===section);
+      if(!rows.length)continue;
+      const wrap=document.createElement('div');wrap.className='fc-topic-section';
+      const h=document.createElement('h3');h.textContent=`${section} (${rows.reduce((n,d)=>n+Number(d.card_count||0),0)} thẻ)`;wrap.append(h);
+      for(const d of rows)wrap.append(makeCard(d));
+      group.append(wrap);
+    }
+    root.append(group);
+  }
+  if(standalone.length){
+    if(grouped.length){const h=document.createElement('h3');h.className='fc-other-heading';h.textContent='Các bộ Flashcard khác';root.append(h);}
+    standalone.forEach(d=>root.append(makeCard(d)));
+  }
+  return true;
+}
+async function loadTeacher(){
+  const r=await api('/api/v4/decks');decks=r.decks;
+  const root=$('#fcTeacherDecks');
+  if(!appendGroupedDecks(root,decks,d=>{
+    const box=document.createElement('div');box.className='fc-deck';
+    box.innerHTML=`<div><h3>${esc(d.title)}</h3><small>${esc(d.class_name)} · ${esc(d.unit)} · ${d.card_count} từ</small></div>`;
+    const btn=document.createElement('button');btn.className='button outline';btn.textContent='Xem tiến độ';
+    btn.onclick=async()=>{try{const r=await api('/api/v4/teacher/progress?deckId='+d.id);const rows=r.students.map(x=>`${esc(x.name)}: ${x.studied}/${d.card_count} từ đã luyện · ${x.remembered} từ nhớ ổn định`).join('\n');alert(rows||'Chưa có học sinh trong lớp này.')}catch(e){notice(e.message)}};
+    box.append(btn);return box;
+  }))root.innerHTML='<p>Chưa có bộ từ. Hãy tạo bộ đầu tiên bên trên.</p>';
+}
 $('#fcCreate').addEventListener('submit',async e=>{e.preventDefault();const btn=e.target.querySelector('button[type="submit"]');btn.disabled=true;try{const r=await api('/api/v4/decks','POST',{classId:Number($('#fcClass').value),unit:$('#fcUnit').value,title:$('#fcTitle').value,text:$('#fcWords').value});$('#fcSaveStatus').textContent=`Đã thêm ${r.added} từ, bỏ qua ${r.skipped} từ trùng.`;await loadTeacher();notice('Đã lưu bộ flashcard vào ổ đĩa của website!',true)}catch(err){notice(err.message)}finally{btn.disabled=false}});
-async function loadStudent(){const r=await api('/api/v4/decks');decks=r.decks;const root=$('#fcStudentDecks');root.replaceChildren();if(!decks.length){root.innerHTML='<p>Chưa có bộ từ vựng nào dành cho lớp em. Hãy hỏi giáo viên.</p>';return}for(const d of decks){const box=document.createElement('div');box.className='fc-deck';box.innerHTML=`<div><h3>${esc(d.title)}</h3><small>${esc(d.unit)} · ${d.card_count} từ · Đã luyện ${d.studied_count} · Đến hạn ${d.due_count}</small></div>`;const b=document.createElement('button');b.className='button primary';b.textContent='Bắt đầu học →';b.onclick=()=>openDeck(d.id).catch(e=>notice(e.message));box.append(b);root.append(box)}}
+async function loadStudent(){
+  const r=await api('/api/v4/decks');decks=r.decks;
+  const root=$('#fcStudentDecks');
+  if(!appendGroupedDecks(root,decks,d=>{
+    const box=document.createElement('div');box.className='fc-deck';
+    box.innerHTML=`<div><h3>${esc(d.title)}</h3><small>${esc(d.unit)} · ${d.card_count} từ · Đã luyện ${d.studied_count} · Đến hạn ${d.due_count}</small></div>`;
+    const b=document.createElement('button');b.className='button primary';b.textContent='Bắt đầu học →';
+    b.onclick=()=>openDeck(d.id).catch(e=>notice(e.message));box.append(b);return box;
+  }))root.innerHTML='<p>Chưa có bộ từ vựng nào dành cho lớp em. Hãy hỏi giáo viên.</p>';
+}
 async function openDeck(id){const r=await api('/api/v4/decks/'+id);currentDeck=r.deck;cards=r.cards;mode='flip';dueOnly=false;$('#fcDueOnly').classList.remove('active');$('#fcDueOnly').setAttribute('aria-pressed','false');$('#fcDeckList').classList.add('hidden');$('#fcPractice').classList.remove('hidden');$('#fcDeckTitle').textContent=r.deck.title;$('#fcDeckDetail').textContent=`${r.deck.className} · ${r.deck.unit} · ${cards.length} từ`;$$('[data-mode]').forEach(x=>x.classList.toggle('active',x.dataset.mode===mode));reset()}
 function reset(){let pool=cards.filter(c=>!dueOnly||!c.attempts||c.due_at<=Date.now());queue=reshuffle(pool);cursor=0;uncovered=false;lastMarked=false;matchPairs=[];matched=new Set();selectedMatch=null;matchMisses=0;render()}
 function speakButton(word){const b=document.createElement('button');b.className='button outline';b.textContent='🔊 Phát âm';b.type='button';b.onclick=()=>speech(word,b);return b}

@@ -1,0 +1,11 @@
+NÂNG CẤP 1.3 – GOM ĐỀ SỐ 3 THÀNH MỘT CHUYÊN ĐỀ HIỂN THỊ
+
+1. Giải nén gói ZIP.
+2. Mở GitHub repo EnglishVocabDaily, truy cập thư mục public.
+3. Upload 4 tệp: flashcards.js, flashcards.css, flashcards.html, pronunciation.js.
+4. Commit changes; Render tự triển khai.
+5. Tải lại trang Flashcards; bộ có chữ "Đề 3" hoặc "Đề số 3" trong Tên bộ hoặc Unit/Chuyên đề sẽ được hiển thị trong một khối ĐỀ SỐ 3 – TỔNG ÔN.
+6. Các bộ chưa có chữ Đề 3 trong tiêu đề hoặc chuyên đề vẫn nằm ở mục "Các bộ Flashcard khác". Bản cập nhật không tự đổi tên hay chuyển dữ liệu đã lưu.
+
+LƯU Ý: Đây là gom các bộ vào một CHUYÊN ĐỀ TRÊN GIAO DIỆN, không hợp nhất bản ghi database. Học sinh vẫn học từng mục và giữ nguyên tiến độ.
+Nếu muốn một bộ có nút chọn phần và trộn thẻ xuyên nhiều bộ, cần nâng cấp API/database riêng.
