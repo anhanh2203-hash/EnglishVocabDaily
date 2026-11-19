@@ -34,6 +34,29 @@ for(const a of db.prepare('SELECT id FROM assignments WHERE access_code IS NULL'
  db.prepare('UPDATE assignments SET access_code=? WHERE id=?').run(code,a.id);
 }
 db.exec('CREATE UNIQUE INDEX IF NOT EXISTS idx_assignment_access_code ON assignments(access_code)');
+
+// EVD 4.0 - flashcard decks are isolated by teacher and class.
+db.exec(`
+CREATE TABLE IF NOT EXISTS vocab_decks (
+ id INTEGER PRIMARY KEY, teacher_id INTEGER NOT NULL REFERENCES users(id),
+ class_id INTEGER NOT NULL REFERENCES classes(id), title TEXT NOT NULL,
+ unit TEXT NOT NULL, created_at INTEGER NOT NULL,
+ UNIQUE(teacher_id,class_id,unit,title)
+);
+CREATE TABLE IF NOT EXISTS vocab_cards (
+ id INTEGER PRIMARY KEY, deck_id INTEGER NOT NULL REFERENCES vocab_decks(id) ON DELETE CASCADE,
+ word TEXT NOT NULL, meaning TEXT NOT NULL, example TEXT NOT NULL DEFAULT '',
+ UNIQUE(deck_id,word)
+);
+CREATE TABLE IF NOT EXISTS vocab_progress (
+ student_id INTEGER NOT NULL REFERENCES users(id), card_id INTEGER NOT NULL REFERENCES vocab_cards(id) ON DELETE CASCADE,
+ attempts INTEGER NOT NULL DEFAULT 0, correct INTEGER NOT NULL DEFAULT 0,
+ streak INTEGER NOT NULL DEFAULT 0, due_at INTEGER NOT NULL DEFAULT 0, last_at INTEGER NOT NULL DEFAULT 0,
+ PRIMARY KEY(student_id,card_id)
+);
+CREATE INDEX IF NOT EXISTS idx_vocab_decks_class ON vocab_decks(class_id);
+CREATE INDEX IF NOT EXISTS idx_vocab_progress_due ON vocab_progress(student_id,due_at);
+`);
 const now=()=>Date.now();
 const query=(sql,...params)=>db.prepare(sql).all(...params);
 const one=(sql,...params)=>db.prepare(sql).get(...params);
@@ -77,17 +100,9 @@ function ownedAssignment(user,id){const a=one('SELECT a.*,c.name AS class_name,c
 function studentAssignment(user,id){const a=one('SELECT a.*,c.name AS class_name,c.grade FROM assignments a JOIN classes c ON c.id=a.class_id WHERE a.id=? AND a.class_id=?',Number(id),user.class_id);if(!a)httpError(404,'Bài kiểm tra không dành cho lớp của em.');return a}
 const shuffle=(arr)=>{const a=[...arr];for(let i=a.length-1;i>0;i--){const j=crypto.randomInt(i+1);[a[i],a[j]]=[a[j],a[i]];}return a};
 function makeOrder(grade,unit,teacherId,count=20){const all=query('SELECT id FROM questions WHERE grade=? AND unit=? AND (owner_teacher_id IS NULL OR owner_teacher_id=?) ORDER BY id',grade,unit,teacherId);if(all.length<count)httpError(400,`Ngân hàng câu hỏi của Unit này chưa đủ ${count} câu.`);return shuffle(all).slice(0,count).map(q=>({id:q.id,perm:shuffle([0,1,2,3])}));}
-const INPUT_TYPES=new Set(['listen-dictation','listen-cloze','listen-reorder']);
-const LISTEN_TYPES=new Set(['listen-word','listen-sentence','listen-dictation','listen-cloze','listen-reorder','listen-contrast']);
-// Normalize case/spacing; dictation and reordering may ignore terminal punctuation,
-// but do not remove words or change spelling. Cloze answers must match the source exactly.
-const normalizeWritten=v=>String(v??'').normalize('NFKC').toLowerCase().replace(/[.,!?;:]+$/g,'').replace(/\s+/g,' ').trim();
-function correctFor(q,item,answer){if(INPUT_TYPES.has(q.type))return typeof answer==='string'&&normalizeWritten(answer)===normalizeWritten(JSON.parse(q.options)[q.correct_index]);return answer===item.perm.indexOf(q.correct_index)}
-function itemsForOrder(order,withAnswers){return order.map(item=>{const q=one('SELECT * FROM questions WHERE id=?',item.id);const input=INPUT_TYPES.has(q.type);const base={id:q.id,type:q.type,prompt:q.prompt,options:input?[]:item.perm.map(i=>safeJson(q.options)[i])};if(LISTEN_TYPES.has(q.type))base.audioText=q.audio_text||q.word;
- if(q.type==='listen-reorder'){const words=(q.audio_text||'').trim().split(/\s+/);base.wordTiles=shuffle(words).map(word=>({word}));}
- if(withAnswers){base.correctIndex=input?null:item.perm.indexOf(q.correct_index);base.correctText=input?safeJson(q.options)[q.correct_index]:null;base.explanation=q.explanation;}return base});}
-function sanitizeAnswers(order,raw){const clean={};if(!raw||typeof raw!=='object'||Array.isArray(raw))return clean;for(const item of order){const v=raw[String(item.id)],q=one('SELECT type FROM questions WHERE id=?',item.id);if(INPUT_TYPES.has(q.type)){if(typeof v==='string'&&v.length<=500)clean[String(item.id)]=v;}else if(Number.isInteger(v)&&v>=0&&v<=3)clean[String(item.id)]=v;}return clean}
-function finalize(attempt,raw,when){if(attempt.status!=='active')return attempt;const order=safeJson(attempt.order_json);const answers=sanitizeAnswers(order,raw);let correct=0;for(const item of order){const q=one('SELECT type,options,correct_index FROM questions WHERE id=?',item.id);if(correctFor(q,item,answers[String(item.id)]))correct++}
+function itemsForOrder(order,withAnswers){return order.map(item=>{const q=one('SELECT * FROM questions WHERE id=?',item.id);const base={id:q.id,type:q.type,prompt:q.prompt,options:item.perm.map(i=>safeJson(q.options)[i])};if(['listen-word','listen-sentence'].includes(q.type))base.audioText=q.audio_text||q.word;if(withAnswers){base.correctIndex=item.perm.indexOf(q.correct_index);base.explanation=q.explanation;};return base});}
+function sanitizeAnswers(order,raw){const clean={};if(!raw||typeof raw!=='object'||Array.isArray(raw))return clean;for(const item of order){const v=raw[String(item.id)];if(Number.isInteger(v)&&v>=0&&v<=3)clean[String(item.id)]=v;}return clean}
+function finalize(attempt,raw,when){if(attempt.status!=='active')return attempt;const order=safeJson(attempt.order_json);const answers=sanitizeAnswers(order,raw);let correct=0;for(const item of order){const q=one('SELECT correct_index FROM questions WHERE id=?',item.id);if(answers[String(item.id)]===item.perm.indexOf(q.correct_index))correct++}
   run("UPDATE attempts SET status='submitted',submitted_at=?,answers_json=?,draft_json=?,score=?,correct_count=? WHERE id=? AND status='active'",when,JSON.stringify(answers),JSON.stringify(answers),Math.round(correct/order.length*1000)/100,correct,attempt.id);
   return one('SELECT * FROM attempts WHERE id=?',attempt.id);
 }
@@ -99,7 +114,83 @@ const loginFailures=new Map();
 const quickJoinAttempts=new Map();
 function validUsername(s){return typeof s==='string'&&/^[a-zA-Z0-9_.-]{3,32}$/.test(s)}
 function userSafe(user){return {id:user.id,username:user.username,role:user.role,displayName:user.display_name,classId:user.class_id,className:user.class_name,grade:user.grade}}
-async function api(req,res,url){const route=url.pathname,method=req.method;const body=['POST','PUT','PATCH'].includes(method)?await readBody(req):{};
+async function api(req,res,url){const route=url.pathname,method=req.method;const body=['POST','PUT','PATCH'].includes(method)?await readBody(req):{};req.user=getUser(req);
+
+  // Vocab decks: student only sees decks assigned to their class; teacher owns every change.
+  if(method==='GET'&&route==='/api/v4/decks'){
+    const u=auth(req);
+    if(u.role==='teacher'){
+      const rows=query(`SELECT d.id,d.title,d.unit,d.class_id,c.name AS class_name,c.grade,
+        (SELECT COUNT(*) FROM vocab_cards k WHERE k.deck_id=d.id) AS card_count
+        FROM vocab_decks d JOIN classes c ON c.id=d.class_id WHERE d.teacher_id=? ORDER BY c.grade,c.name,d.unit,d.id DESC`,u.id);
+      return json(res,200,{decks:rows});
+    }
+    const rows=query(`SELECT d.id,d.title,d.unit,c.name AS class_name,c.grade,
+      (SELECT COUNT(*) FROM vocab_cards k WHERE k.deck_id=d.id) AS card_count,
+      (SELECT COUNT(*) FROM vocab_progress p JOIN vocab_cards k ON p.card_id=k.id WHERE k.deck_id=d.id AND p.student_id=? AND p.attempts>0) AS studied_count,
+      (SELECT COUNT(*) FROM vocab_progress p JOIN vocab_cards k ON p.card_id=k.id WHERE k.deck_id=d.id AND p.student_id=? AND p.due_at<=?) AS due_count
+      FROM vocab_decks d JOIN classes c ON c.id=d.class_id WHERE d.class_id=? ORDER BY d.unit,d.id DESC`,u.id,u.id,now(),u.class_id);
+    return json(res,200,{decks:rows});
+  }
+  if(method==='POST'&&route==='/api/v4/decks'){
+    const u=auth(req,'teacher');const cls=ownedClass(u,body.classId);
+    const unit=String(body.unit||'').trim(),title=String(body.title||'').trim();
+    if(!unit||unit.length>100||!title||title.length>100)httpError(400,'Cần tên Unit/chuyên đề và tên bộ thẻ (tối đa 100 ký tự).');
+    const raw=String(body.text||'');if(raw.length>50000)httpError(400,'Danh sách quá dài.');
+    const rows=raw.split(/\r?\n/).filter(v=>v.trim()).map((line,i)=>{
+      const parts=line.split('\t').map(x=>x.trim());
+      if(parts.length<2||parts.length>3||!parts[0]||!parts[1])httpError(400,`Dòng ${i+1}: cần TỪ [TAB] NGHĨA [TAB] VÍ DỤ (không bắt buộc).`);
+      if(parts[0].length>100||parts[1].length>250||(parts[2]||'').length>350)httpError(400,`Dòng ${i+1} quá dài.`);
+      return {word:parts[0],meaning:parts[1],example:parts[2]||''};
+    });
+    if(rows.length<1||rows.length>200)httpError(400,'Mỗi bộ cần từ 1 đến 200 từ.');
+    const norm=x=>x.normalize('NFC').toLocaleLowerCase('vi').replace(/\s+/g,' ').trim();
+    if(new Set(rows.map(r=>norm(r.word))).size!==rows.length)httpError(400,'Danh sách có từ tiếng Anh bị trùng.');
+    db.exec('BEGIN IMMEDIATE');try{
+      const existing=one('SELECT id FROM vocab_decks WHERE teacher_id=? AND class_id=? AND unit=? AND title=?',u.id,cls.id,unit,title);
+      const deckId=existing?.id||Number(run('INSERT INTO vocab_decks(teacher_id,class_id,title,unit,created_at) VALUES(?,?,?,?,?)',u.id,cls.id,title,unit,now()).lastInsertRowid);
+      let added=0,skipped=0;
+      for(const row of rows){const r=run('INSERT OR IGNORE INTO vocab_cards(deck_id,word,meaning,example) VALUES(?,?,?,?)',deckId,row.word,row.meaning,row.example);if(r.changes)added++;else skipped++;}
+      db.exec('COMMIT');return json(res,201,{deckId,added,skipped});
+    }catch(err){db.exec('ROLLBACK');throw err}
+  }
+  if(method==='GET'&&/^\/api\/v4\/decks\/\d+$/.test(route)){
+    const u=auth(req),id=Number(route.split('/')[4]);
+    const deck=one('SELECT d.*,c.grade,c.name AS class_name FROM vocab_decks d JOIN classes c ON c.id=d.class_id WHERE d.id=?',id);
+    if(!deck||(u.role==='teacher'?deck.teacher_id!==u.id:deck.class_id!==u.class_id))httpError(404,'Không có bộ từ này trong lớp của bạn.');
+    const cards=query(`SELECT k.id,k.word,k.meaning,k.example,
+      COALESCE(p.attempts,0) AS attempts,COALESCE(p.correct,0) AS correct,
+      COALESCE(p.streak,0) AS streak,COALESCE(p.due_at,0) AS due_at
+      FROM vocab_cards k LEFT JOIN vocab_progress p ON p.card_id=k.id AND p.student_id=? WHERE k.deck_id=? ORDER BY k.id`,u.role==='student'?u.id:-1,id);
+    return json(res,200,{deck:{id:deck.id,title:deck.title,unit:deck.unit,grade:deck.grade,className:deck.class_name},cards});
+  }
+  if(method==='POST'&&route==='/api/v4/review'){
+    const u=auth(req,'student'),id=Number(body.cardId),rating=String(body.rating||'');
+    if(!['again','hard','good'].includes(rating))httpError(400,'Đánh giá không hợp lệ.');
+    const card=one('SELECT k.id FROM vocab_cards k JOIN vocab_decks d ON d.id=k.deck_id WHERE k.id=? AND d.class_id=?',id,u.class_id);
+    if(!card)httpError(404,'Từ này không thuộc lớp của em.');
+    const old=one('SELECT * FROM vocab_progress WHERE student_id=? AND card_id=?',u.id,id);
+    const streak=rating==='again'?0:rating==='hard'?Math.max(0,(old?.streak||0)):Math.min(10,(old?.streak||0)+1);
+    const days=rating==='again'?0:rating==='hard'?1:[1,3,7,14,30,60,90,120,150,180][Math.max(0,streak-1)];
+    const due=now()+(rating==='again'?10*60000:days*86400000);
+    run(`INSERT INTO vocab_progress(student_id,card_id,attempts,correct,streak,due_at,last_at) VALUES(?,?,?,?,?,?,?)
+      ON CONFLICT(student_id,card_id) DO UPDATE SET attempts=excluded.attempts,correct=excluded.correct,streak=excluded.streak,due_at=excluded.due_at,last_at=excluded.last_at`,
+      u.id,id,(old?.attempts||0)+1,(old?.correct||0)+(rating==='good'?1:0),streak,due,now());
+    return json(res,200,{ok:true,streak,dueAt:due});
+  }
+  if(method==='GET'&&route==='/api/v4/teacher/progress'){
+    const u=auth(req,'teacher'),deckId=Number(url.searchParams.get('deckId'));
+    const d=one('SELECT id,class_id FROM vocab_decks WHERE id=? AND teacher_id=?',deckId,u.id);
+    if(!d)httpError(404,'Không tìm thấy bộ thẻ.');
+    const rows=query(`SELECT s.id,s.display_name AS name,s.username,
+      COUNT(DISTINCT CASE WHEN p.attempts>0 THEN k.id END) AS studied,
+      COUNT(DISTINCT CASE WHEN p.streak>=2 THEN k.id END) AS remembered,
+      COALESCE(SUM(p.attempts),0) AS reviews
+      FROM users s CROSS JOIN vocab_cards k JOIN vocab_decks d ON d.id=k.deck_id
+      LEFT JOIN vocab_progress p ON p.student_id=s.id AND p.card_id=k.id
+      WHERE s.role='student' AND s.class_id=? AND d.id=? GROUP BY s.id ORDER BY s.display_name`,d.class_id,deckId);
+    return json(res,200,{students:rows});
+  }
   if(method==='GET'&&route==='/api/health')return json(res,200,{status:'ok',database:one('SELECT 1 AS alive').alive===1?'ok':'error'});
   if(method==='POST'&&route==='/api/login'){
     const ip=req.socket.remoteAddress||'unknown';const previous=loginFailures.get(ip);if(previous&&previous.count>=12&&now()-previous.since<15*60000)httpError(429,'Quá nhiều lần đăng nhập sai. Hãy thử lại sau.');
@@ -204,11 +295,8 @@ async function api(req,res,url){const route=url.pathname,method=req.method;const
       const options=Array.isArray(q.options)?q.options.map(v=>String(v).trim()):[];
       const answer=Number(q.answer);
       const type=String(q.type||'context'),audioText=String(q.audioText||'').trim();
-      if(!['context','listen-word','listen-sentence','listen-dictation','listen-cloze','listen-reorder','listen-contrast'].includes(type)||(LISTEN_TYPES.has(type)&&(!audioText||audioText.length>400||/[<>]/.test(audioText))))httpError(400,`Câu ${i+1}: nội dung nghe không hợp lệ.`);
+      if(!['context','listen-word','listen-sentence'].includes(type)||(['listen-word','listen-sentence'].includes(type)&&(!audioText||audioText.length>400||/[<>]/.test(audioText))))httpError(400,`Câu ${i+1}: nội dung nghe không hợp lệ.`);
       if(word.length<1||word.length>100||prompt.length<8||prompt.length>500||explanation.length>1000||options.length!==4||options.some(v=>v.length<1||v.length>250)||new Set(options.map(v=>v.toLowerCase())).size!==4||!Number.isInteger(answer)||answer<0||answer>3)httpError(400,`Câu ${i+1} không hợp lệ: cần câu hỏi rõ ràng, 4 đáp án khác nhau và đáp án đúng A–D.`);
-      if(INPUT_TYPES.has(type)&&(!options[answer]||options[answer].length>250))httpError(400,`Câu ${i+1}: chưa có đáp án viết chính xác.`);
-      if(type==='listen-cloze'&&!normalizeWritten(audioText).includes(normalizeWritten(options[answer])))httpError(400,`Câu ${i+1}: từ cần điền không có trong câu nghe.`);
-      if(type==='listen-reorder'&&normalizeWritten(audioText)!==normalizeWritten(options[answer]))httpError(400,`Câu ${i+1}: đáp án sắp xếp phải đúng nguyên văn câu nghe.`);
       return {word,prompt,explanation,options,answer,type,audioText};
     });
     const normalize=t=>t.normalize('NFKC').toLowerCase().replace(/\s+/g,' ').trim();
@@ -237,15 +325,23 @@ async function api(req,res,url){const route=url.pathname,method=req.method;const
     const canon=s=>s.normalize('NFKC').trim().toLowerCase().replace(/\s+/g,' ');
     if(new Set(vocab.map(v=>canon(v.word))).size!==vocab.length||new Set(vocab.map(v=>canon(v.meaning))).size!==vocab.length)httpError(400,'Có từ hoặc nghĩa trùng nhau. Hãy sửa trước khi tạo câu hỏi để tránh nhiều đáp án đúng.');
     if(vocab.some(v=>v.word.length>100||v.meaning.length>200))httpError(400,'Từ hoặc nghĩa quá dài.');
+    const target=Number(body.count||Math.min(200,vocab.length*4));
+    if(!Number.isInteger(target)||target<4||target>200)httpError(400,'Chọn số câu từ 4 đến 200.');
+    if(target>vocab.length*4)httpError(400,`Danh sách ${vocab.length} từ tạo tối đa ${vocab.length*4} câu khác loại. Cần tối thiểu ${Math.ceil(target/4)} từ khác nhau cho ${target} câu để tránh lặp câu hỏi.`);
     const generated=[];
+    // Four distinct tasks per word; no fabricated contexts or inaccurate cloze questions.
     for(let i=0;i<vocab.length;i++){
-      const v=vocab[i];const distractors=[1,2,3].map(j=>vocab[(i+j)%vocab.length]);
-      for(const direction of ['en-vi','vi-en']){
-        const options=shuffle(direction==='en-vi'?[v.meaning,...distractors.map(t=>t.meaning)]:[v.word,...distractors.map(t=>t.word)]);
-        const answer=options.indexOf(direction==='en-vi'?v.meaning:v.word);
-        generated.push({word:v.word,prompt:direction==='en-vi'?`Từ “${v.word}” có nghĩa là gì?`:`“${v.meaning}” trong tiếng Anh là gì?`,options,answer,explanation:`${v.word} = ${v.meaning}`});
-      }
+      const v=vocab[i];
+      const distractors=[1,2,3].map(j=>vocab[(i+j)%vocab.length]);
+      const choices=(correct,others)=>{const options=shuffle([correct,...others]);return {options,answer:options.indexOf(correct)}};
+      generated.push({word:v.word,prompt:`Từ “${v.word}” có nghĩa là gì?`,...choices(v.meaning,distractors.map(t=>t.meaning)),explanation:`${v.word} = ${v.meaning}`,type:'context',audioText:''});
+      generated.push({word:v.word,prompt:`“${v.meaning}” trong tiếng Anh là gì?`,...choices(v.word,distractors.map(t=>t.word)),explanation:`${v.word} = ${v.meaning}`,type:'context',audioText:''});
+      generated.push({word:v.word,prompt:'Nghe từ tiếng Anh và chọn nghĩa tiếng Việt chính xác.',...choices(v.meaning,distractors.map(t=>t.meaning)),explanation:`${v.word} = ${v.meaning}`,type:'listen-word',audioText:v.word});
+      generated.push({word:v.word,prompt:'Nghe và nhận diện từ tiếng Anh được phát âm.',...choices(v.word,distractors.map(t=>t.word)),explanation:`Từ được phát âm: ${v.word}`,type:'listen-word',audioText:v.word});
     }
+    // Cycle by question type so short selections retain a balanced mix, without duplicate prompts.
+    const balanced=[];for(let type=0;type<4;type++)for(let i=0;i<vocab.length;i++)balanced.push(generated[i*4+type]);
+    generated.splice(0,generated.length,...balanced.slice(0,target));
     return json(res,200,{grade,unit,generated,warning:'Đây là câu hỏi nhận biết từ–nghĩa tự động, giáo viên cần duyệt các phương án nhiễu và nghĩa trước khi nhập.'});
   }
   if(method==='PATCH'&&/^\/api\/teacher\/questions\/\d+$/.test(route)){
@@ -274,7 +370,7 @@ async function api(req,res,url){const route=url.pathname,method=req.method;const
   }
   if(method==='POST'&&route==='/api/teacher/assignments'){
     const u=auth(req,'teacher'),cls=ownedClass(u,body.classId),title=String(body.title||'').trim(),unit=String(body.unit||'Tổng ôn minh họa').trim(),questionCount=Number(body.questionCount||20),durationMinutes=Number(body.durationMinutes||10),maxAttempts=Number(body.maxAttempts||2);
-    if(![5,10,15,20,30,50].includes(questionCount)||!Number.isInteger(durationMinutes)||durationMinutes<3||durationMinutes>60||!Number.isInteger(maxAttempts)||maxAttempts<1||maxAttempts>3)httpError(400,'Số câu, thời gian hoặc số lượt không hợp lệ.');
+    if(![5,10,15,20,30,50,100,150,200].includes(questionCount)||!Number.isInteger(durationMinutes)||durationMinutes<3||durationMinutes>240||!Number.isInteger(maxAttempts)||maxAttempts<1||maxAttempts>3)httpError(400,'Số câu, thời gian hoặc số lượt không hợp lệ.');
     if(title.length<4||title.length>120||unit.length>100)httpError(400,'Tiêu đề bài kiểm tra không hợp lệ.');
     const deadline=body.dueAt?Date.parse(body.dueAt):null;if(deadline!==null&&(!Number.isFinite(deadline)||deadline<=now()))httpError(400,'Hạn nộp phải là thời điểm trong tương lai.');
     const available=one('SELECT COUNT(*) AS n FROM questions WHERE grade=? AND unit=? AND (owner_teacher_id IS NULL OR owner_teacher_id=?)',cls.grade,unit,u.id).n;if(available<questionCount)httpError(400,`Chủ đề “${unit}” chỉ có ${available} câu, cần ít nhất ${questionCount} câu.`);
@@ -294,7 +390,7 @@ async function api(req,res,url){const route=url.pathname,method=req.method;const
     const completed=rows.filter(r=>r.completed>0),allScores=completed.map(r=>r.latestScore);
     const stats={totalStudents:students.length,studentsCompleted:completed.length,studentsMissing:students.length-completed.length,completionRate:students.length?Math.round(completed.length/students.length*100):0,totalAttempts:attempts.length,submittedAttempts:attempts.filter(t=>t.status==='submitted').length,averageScore:allScores.length?Math.round(allScores.reduce((a,b)=>a+b,0)/allScores.length*100)/100:null,highestScore:allScores.length?Math.max(...allScores):null,lowestScore:allScores.length?Math.min(...allScores):null,aboveEight:allScores.filter(s=>s>=8).length};
     const daily=[];for(let i=6;i>=0;i--){const date=new Date(now()-i*86400000);const key=date.toISOString().slice(0,10);daily.push({date:key,count:attempts.filter(t=>t.submitted_at&&new Date(t.submitted_at).toISOString().slice(0,10)===key).length});}
-    const wrongCounts={};for(const t of attempts.filter(t=>t.status==='submitted')){const detail=one('SELECT order_json,answers_json FROM attempts WHERE id=?',t.id);const answers=safeJson(detail.answers_json);for(const item of safeJson(detail.order_json)){const q=one('SELECT word,type,options,correct_index FROM questions WHERE id=?',item.id);if(!correctFor(q,item,answers[String(item.id)]))wrongCounts[q.word]=(wrongCounts[q.word]||0)+1;}}
+    const wrongCounts={};for(const t of attempts.filter(t=>t.status==='submitted')){const detail=one('SELECT order_json,answers_json FROM attempts WHERE id=?',t.id);const answers=safeJson(detail.answers_json);for(const item of safeJson(detail.order_json)){const q=one('SELECT word,correct_index FROM questions WHERE id=?',item.id);if(answers[String(item.id)]!==item.perm.indexOf(q.correct_index))wrongCounts[q.word]=(wrongCounts[q.word]||0)+1;}}
     const hardest=Object.entries(wrongCounts).sort((a,b)=>b[1]-a[1]).slice(0,8).map(([word,count])=>({word,count}));
     return json(res,200,{assignment:a,stats,students:rows,attempts:attempts.map(t=>({...t,name:students.find(s=>s.id===t.student_id)?.display_name||'—'})),daily,hardest});
   }
