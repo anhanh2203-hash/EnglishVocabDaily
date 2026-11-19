@@ -1,11 +1,9 @@
-NÂNG CẤP 1.3 – GOM ĐỀ SỐ 3 THÀNH MỘT CHUYÊN ĐỀ HIỂN THỊ
+BẢN 1.4: KHẮC PHỤC MẤT GIỌNG FLASHCARD ĐỀ SỐ 3
 
-1. Giải nén gói ZIP.
-2. Mở GitHub repo EnglishVocabDaily, truy cập thư mục public.
-3. Upload 4 tệp: flashcards.js, flashcards.css, flashcards.html, pronunciation.js.
-4. Commit changes; Render tự triển khai.
-5. Tải lại trang Flashcards; bộ có chữ "Đề 3" hoặc "Đề số 3" trong Tên bộ hoặc Unit/Chuyên đề sẽ được hiển thị trong một khối ĐỀ SỐ 3 – TỔNG ÔN.
-6. Các bộ chưa có chữ Đề 3 trong tiêu đề hoặc chuyên đề vẫn nằm ở mục "Các bộ Flashcard khác". Bản cập nhật không tự đổi tên hay chuyển dữ liệu đã lưu.
+Mở GitHub repository > public > Add file > Upload files.
+Chỉ tải lên 2 tệp: flashcards.html và pronunciation.js rồi Commit changes.
+Không tải lên server.js; không chỉnh cơ sở dữ liệu.
+flashcards.js và flashcards.css trong ZIP được giữ nguyên từ bản gom Đề 3 1.3 để sao lưu.
 
-LƯU Ý: Đây là gom các bộ vào một CHUYÊN ĐỀ TRÊN GIAO DIỆN, không hợp nhất bản ghi database. Học sinh vẫn học từng mục và giữ nguyên tiến độ.
-Nếu muốn một bộ có nút chọn phần và trộn thẻ xuyên nhiều bộ, cần nâng cấp API/database riêng.
+Thử: mở đề 3 > bộ 50 từ > chọn Lật thẻ > nhấn Phát âm. Trên điện thoại tải lại trang sau khi cập nhật.
+Giọng nói máy phụ thuộc trình duyệt/hệ điều hành; bản ghi từ điển chỉ được lưu bộ nhớ khi tra được.
