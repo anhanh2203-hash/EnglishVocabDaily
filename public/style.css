@@ -18,5 +18,3 @@
 .listen-box button{min-height:48px}
 .listen-box .hint{margin:.7rem 0 0}
 #listeningSentences{width:100%;padding:12px;border:1px solid #d4dded;border-radius:10px;min-height:115px}
-
-.typed-answer{display:grid;gap:12px;width:100%}.typed-answer input{font:inherit;font-size:18px;border:2px solid #cbd5e1;border-radius:12px;padding:16px;width:100%;max-width:100%;box-sizing:border-box}.typed-answer input:focus{outline:2px solid #2563eb}.word-tiles{display:flex;flex-wrap:wrap;gap:8px}.word-tiles button{width:auto;min-width:0}.word-tiles button:disabled{opacity:.4}.listen-more{border-top:1px solid #e2e8f0;margin-top:16px;padding-top:14px;display:grid;gap:10px}.listen-more button{justify-self:start}@media(max-width:600px){.typed-answer input{font-size:16px}.listen-more button{width:100%}}
