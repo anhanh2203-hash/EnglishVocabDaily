@@ -1,0 +1,8 @@
+ENGLISH DAILY WITH MS. ANH - BẢN VÁ PHÁT ÂM 1.2
+
+1. Trong GitHub mở thư mục public.
+2. Add file > Upload files, chọn đúng 4 tệp: flashcards.js, flashcards.html, flashcards.css, pronunciation.js.
+3. Commit changes, Render tự triển khai. Không sửa server.js, không đổi cơ sở dữ liệu/ổ đĩa.
+4. Trên trang Flashcard, nhấn Ctrl+Shift+R để làm mới, chọn UK/US, thử âm thanh.
+
+Ưu tiên ghi âm từ điển cho từ đơn khi có nguồn phù hợp; nếu không có hoặc ngoại tuyến, dùng giọng hệ thống trên thiết bị. Cụm từ thường dùng giọng hệ thống. Chất lượng phụ thuộc nguồn từ điển, kết nối và giọng đã cài. Không cam kết hoạt động mọi trình duyệt hay mọi từ.
